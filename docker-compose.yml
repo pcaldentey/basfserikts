@@ -1,0 +1,52 @@
+version: "3.1"
+
+services:
+  postgresql:
+    image: postgres:12
+    hostname: postgresql.docker
+    container_name: dev_postgresql
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: jat
+      POSTGRES_DB: jat_db
+    networks:
+      - backend
+    privileged: true
+
+  api:
+    image: api_image
+    hostname: api_host
+    container_name: api
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    volumes:
+        - ./app:/app
+    depends_on:
+      - postgresql
+    ports:
+      - "80:80"
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: jat
+      POSTGRES_DB: jat_db
+      SQLALCHEMY_DATABASE_URI: postgresql://jat:password@dev_postgresql:5432/jat_db
+    networks:
+      - backend
+    privileged: true
+    # Development. It will reload each time src changes
+    command: /start-reload.sh
+
+networks:
+  default:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.178.0.0/16
+  backend:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.179.0.0/16
