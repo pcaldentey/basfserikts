@@ -3,5 +3,3 @@
 # Let the DB start
 echo "Waiting until database server is up and running....."
 sleep 20;
-# Run migrations
-alembic upgrade head
