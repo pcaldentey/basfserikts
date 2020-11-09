@@ -1,4 +1,0 @@
-SQLAlchemy
-alembic
-psycopg2
-

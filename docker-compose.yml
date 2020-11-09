@@ -1,10 +1,23 @@
 version: "3.1"
 
 services:
+  rabbit:
+    image: rabbitmq:3
+    hostname: rabbit.docker
+    container_name: dev_rabbit
+    ports:
+      - "5672:5672"
+    networks:
+      - backend
+    privileged: true
+
   postgresql:
-    image: postgres:12
+    image: postgres
     hostname: postgresql.docker
     container_name: dev_postgresql
+    build:
+      context: db
+      dockerfile: Dockerfile
     ports:
       - "5432:5432"
     environment:
@@ -32,7 +45,6 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_USER: jat
       POSTGRES_DB: jat_db
-      SQLALCHEMY_DATABASE_URI: postgresql://jat:password@dev_postgresql:5432/jat_db
     networks:
       - backend
     privileged: true
