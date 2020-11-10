@@ -1,5 +1,6 @@
 import os
 import pika
+import psycopg2
 import shutil
 import time
 import zipfile
@@ -9,6 +10,11 @@ from fastapi import FastAPI
 from fastapi import UploadFile, File
 from pathlib import Path
 
+
+QUEUE_NAME = 'patents'
+DB_USER = os.getenv('POSTGRES_USER')
+DB_PASS = os.getenv('POSTGRES_PASSWORD')
+DB_NAME = os.getenv('POSTGRES_DB')
 
 app = FastAPI()
 
@@ -39,28 +45,47 @@ async def create_upload_file(uploaded_file: UploadFile = File(...)):
         unzip_artifact(local_folder, file_location)
     except OSError as e:
         print(e)
-        print("Creation of the directory %s failed" % local_folder)
+        return {"error": "Creation of the directory %s failed" % local_folder}
+
     except zipfile.error as e:
         print(e)
 
+    # Publish patents in rabbit
     connection = pika.BlockingConnection(pika.ConnectionParameters('rabbit'))
     channel = connection.channel()
     channel.queue_declare(queue='patents')
     for f in Path(local_folder).glob('*.xml'):
         with open('{}/{}'.format(local_folder, f.name), 'r') as fp:
             lines = fp.readlines()
-            channel.basic_publish('', 'patents', ''.join(lines))
+            channel.basic_publish('', QUEUE_NAME, ''.join(lines))
 
     return {"info": f"file '{uploaded_file.filename}' saved at '{file_location}' and processed"}
 
 
 @app.get("/clear")
 def get_clear():
-    errors = []
-    connected = True
-    if errors:
-        return {"errors": errors}
-    elif connected:
-        return {"connected": True, "organisations": None}
-    else:
-        return {"connected": False}
+    # Delete queue
+    connection = pika.BlockingConnection(pika.ConnectionParameters('rabbit'))
+    channel = connection.channel()
+    channel.queue_delete(queue=QUEUE_NAME)
+    # Cleaning database
+    try:
+
+        conn = psycopg2.connect(
+            host="postgresql",
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS)
+
+        cur = conn.cursor()
+
+        # execute a statement
+        cur.execute('TRUNCATE TABLE named_entity')
+        cur.execute('TRUNCATE TABLE patent')
+
+        # close the communication with the PostgreSQL
+        cur.close()
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+
+    return {"status": "OK"}

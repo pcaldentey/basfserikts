@@ -39,6 +39,7 @@ services:
         - ./api:/app
     depends_on:
       - postgresql
+      - rabbit
     ports:
       - "80:80"
     environment:
