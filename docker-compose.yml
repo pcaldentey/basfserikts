@@ -28,6 +28,28 @@ services:
       - backend
     privileged: true
 
+  worker:
+    image: worker_image
+    hostname: worker_host
+    container_name: dev_worker
+    build:
+      context: worker
+      dockerfile: Dockerfile
+    volumes:
+        - ./worker:/app
+    depends_on:
+      - postgresql
+      - rabbit
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: jat
+      POSTGRES_DB: jat_db
+      QUEUE_NAME: patents
+    networks:
+      - backend
+    privileged: true
+    command: tail -f /dev/null
+
   api:
     image: api_image
     hostname: api_host
@@ -46,6 +68,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_USER: jat
       POSTGRES_DB: jat_db
+      QUEUE_NAME: patents
     networks:
       - backend
     privileged: true

@@ -11,7 +11,7 @@ from fastapi import UploadFile, File
 from pathlib import Path
 
 
-QUEUE_NAME = 'patents'
+QUEUE_NAME = os.getenv('QUEUE_NAME')
 DB_USER = os.getenv('POSTGRES_USER')
 DB_PASS = os.getenv('POSTGRES_PASSWORD')
 DB_NAME = os.getenv('POSTGRES_DB')
@@ -53,7 +53,8 @@ async def create_upload_file(uploaded_file: UploadFile = File(...)):
     # Publish patents in rabbit
     connection = pika.BlockingConnection(pika.ConnectionParameters('rabbit'))
     channel = connection.channel()
-    channel.queue_declare(queue='patents')
+    channel.queue_declare(queue=QUEUE_NAME)
+    channel.queue_declare(queue=QUEUE_NAME + "2")
     for f in Path(local_folder).glob('*.xml'):
         with open('{}/{}'.format(local_folder, f.name), 'r') as fp:
             lines = fp.readlines()
@@ -68,6 +69,7 @@ def get_clear():
     connection = pika.BlockingConnection(pika.ConnectionParameters('rabbit'))
     channel = connection.channel()
     channel.queue_delete(queue=QUEUE_NAME)
+    channel.queue_delete(queue=QUEUE_NAME + "2")
     # Cleaning database
     try:
 
