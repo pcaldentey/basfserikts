@@ -45,6 +45,7 @@ services:
       POSTGRES_USER: jat
       POSTGRES_DB: jat_db
       QUEUE_NAME: patents
+      NUM_CONSUMERS: 4
     networks:
       - backend
     privileged: true
@@ -69,6 +70,7 @@ services:
       POSTGRES_USER: jat
       POSTGRES_DB: jat_db
       QUEUE_NAME: patents
+      NUM_CONSUMERS: 4
     networks:
       - backend
     privileged: true
