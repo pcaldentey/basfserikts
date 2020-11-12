@@ -1,3 +1,4 @@
+import logging
 import os
 import pika
 import psycopg2
@@ -14,7 +15,7 @@ DB_PASS = os.getenv('POSTGRES_PASSWORD')
 DB_NAME = os.getenv('POSTGRES_DB')
 
 counter = 0
-
+queue_name = None
 
 conn = psycopg2.connect(
            host="postgresql",
@@ -24,6 +25,7 @@ conn = psycopg2.connect(
 conn.autocommit = True
 
 nlp = spacy.load("en_core_web_sm")
+logging.basicConfig(level=logging.INFO)
 
 
 def on_message(channel, method_frame, header_frame, body):
@@ -34,29 +36,32 @@ def on_message(channel, method_frame, header_frame, body):
     pln = Pipeline(lines, conn, nlp)
     pln.run()
     counter = counter + 1
-    print(counter)
+    if counter % 50 == 0:
+        logging.info("consumer {}: {} messages consumed ".format(queue_name, counter))
 
 
 def consume(queue_number=1):
+    global queue_name
     queue_name = "{}{}".format(QUEUE_NAME, queue_number)
     while True:
 
-        print("consuming...{}".format(queue_name))
         connection = pika.BlockingConnection(pika.ConnectionParameters('rabbit'))
         channel = connection.channel()
+        logging.info("{}:Start consuming...".format(queue_name))  # will not print anything
+
         try:
             channel.basic_consume(queue_name, on_message)
             channel.start_consuming()
         except KeyboardInterrupt:
             channel.stop_consuming()
         except pika.exceptions.StreamLostError as e:
-            print(e)
+            logging.error(e)
         except pika.exceptions.ChannelClosedByBroker as e:
-            print(e)
+            logging.error(e)
         except pika.exceptions.ConnectionWrongStateError as e:
-            print(e)
+            logging.error(e)
         except PipelineError as e:
-            print(e)
+            logging.error(e)
         except psycopg2.InterfaceError:
             # reload connection
             global conn
@@ -67,7 +72,7 @@ def consume(queue_number=1):
                             password=DB_PASS)
             conn.autocommit = True
 
-        print("sleeping")
+        logging.info("{}:sleeping".format(queue_name))
         time.sleep(3)
 
     connection.close()
