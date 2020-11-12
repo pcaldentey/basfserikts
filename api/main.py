@@ -1,6 +1,7 @@
 import os
 import pika
 import psycopg2
+import random
 import shutil
 import time
 import zipfile
@@ -15,6 +16,7 @@ QUEUE_NAME = os.getenv('QUEUE_NAME')
 DB_USER = os.getenv('POSTGRES_USER')
 DB_PASS = os.getenv('POSTGRES_PASSWORD')
 DB_NAME = os.getenv('POSTGRES_DB')
+NUM_CONSUMERS = os.getenv('NUM_CONSUMERS', 1)
 
 app = FastAPI()
 
@@ -53,12 +55,14 @@ async def create_upload_file(uploaded_file: UploadFile = File(...)):
     # Publish patents in rabbit
     connection = pika.BlockingConnection(pika.ConnectionParameters('rabbit'))
     channel = connection.channel()
-    channel.queue_declare(queue=QUEUE_NAME)
-    channel.queue_declare(queue=QUEUE_NAME + "2")
+
+    for i in range(1, int(NUM_CONSUMERS) + 1):
+        channel.queue_declare(queue="{}{}".format(QUEUE_NAME, i))
+
     for f in Path(local_folder).glob('*.xml'):
         with open('{}/{}'.format(local_folder, f.name), 'r') as fp:
             lines = fp.readlines()
-            channel.basic_publish('', QUEUE_NAME, ''.join(lines))
+            channel.basic_publish('', "{}{}".format(QUEUE_NAME, random.randint(1, int(NUM_CONSUMERS))), ''.join(lines))
 
     return {"info": f"file '{uploaded_file.filename}' saved at '{file_location}' and processed"}
 
@@ -68,8 +72,9 @@ def get_clear():
     # Delete queue
     connection = pika.BlockingConnection(pika.ConnectionParameters('rabbit'))
     channel = connection.channel()
-    channel.queue_delete(queue=QUEUE_NAME)
-    channel.queue_delete(queue=QUEUE_NAME + "2")
+    for i in range(1, int(NUM_CONSUMERS) + 1):
+        channel.queue_delete(queue="{}{}".format(QUEUE_NAME, i))
+
     # Cleaning database
     try:
 
@@ -78,11 +83,11 @@ def get_clear():
             database=DB_NAME,
             user=DB_USER,
             password=DB_PASS)
+        conn.autocommit = True
 
         cur = conn.cursor()
 
         # execute a statement
-        cur.execute('TRUNCATE TABLE named_entity')
         cur.execute('TRUNCATE TABLE patent')
 
         # close the communication with the PostgreSQL
